@@ -1,8 +1,6 @@
 {
   "version": "2.0.0",
   "tasks": [
-    {"label": "Coin Counter: Run", "type": "shell", "command": "python", "args": ["-m", "streamlit", "run", "app.py", "--server.headless", "true"], "isBackground": true, "problemMatcher": []},
-    {"label": "Coin Counter: Test", "type": "shell", "command": "python", "args": ["-m", "unittest", "discover", "-s", "tests", "-v"], "group": "test", "problemMatcher": []},
-    {"label": "Coin Counter: Evaluate demo", "type": "shell", "command": "python", "args": ["evaluate.py", "--output", "results/demo"], "problemMatcher": []}
+    {"label": "Coin Counter: Run", "type": "shell", "command": "python", "args": ["-m", "streamlit", "run", "app.py", "--server.headless", "true"], "isBackground": true, "problemMatcher": []}
   ]
 }

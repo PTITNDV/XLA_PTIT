@@ -4,7 +4,6 @@ import cv2
 import pandas as pd
 import streamlit as st
 from coin_counter.pipeline import Config, COLUMNS, process, read_image
-from coin_counter.evaluation import evaluate, summarize
 
 ROOT = Path(__file__).resolve().parent
 st.set_page_config(page_title="Đếm đồng xu · Xử lý ảnh số", page_icon="🪙", layout="wide")
@@ -30,8 +29,7 @@ with st.expander("Đổi kích thước sang mm (tùy chọn)"):
         scale = real / pixels
         st.caption(f"Hệ số: {scale:.5f} mm/pixel")
 config = Config(mm_per_pixel=scale)
-analyze_tab, evaluate_tab, guide_tab = st.tabs(
-    ["Đếm đồng xu", "Đánh giá bộ dữ liệu", "Giải thích các bước"])
+analyze_tab, guide_tab = st.tabs(["Đếm đồng xu", "Giải thích các bước"])
 
 with analyze_tab:
     st.write("Chọn ảnh để tự động đếm và đo từng đồng xu.")
@@ -39,14 +37,19 @@ with analyze_tab:
     image = None
     name = "image"
     if source == "Ảnh demo":
-        files = sorted((ROOT / "dataset" / "demo").glob("*.png"))
+        demo_folder = ROOT / "anhdemo"
+        files = sorted(p for p in demo_folder.iterdir()
+                       if p.is_file() and p.suffix.lower() in {".jpg", ".jpeg", ".png"}) if demo_folder.is_dir() else []
         if files:
             selected = st.selectbox("Chọn ảnh demo", files, format_func=lambda p: p.stem,
-                index=next((i for i, p in enumerate(files) if p.stem == "touching_pair"), 0))
-            image, name = read_image(selected), selected.stem
-            st.caption("Ảnh demo là ảnh tổng hợp minh họa thuật toán; cần thử thêm ảnh chụp thật.")
+                index=0)
+            try:
+                image, name = read_image(selected), selected.stem
+            except (ValueError, OSError, cv2.error) as error:
+                st.error(f"Không đọc được ảnh demo: {error}")
+            st.caption(f"Có {len(files)} ảnh trong thư mục anhdemo. Chọn từng ảnh để trình bày kết quả.")
         else:
-            st.info("Chưa có ảnh demo. Hãy tải ảnh của bạn hoặc chạy python tools/generate_demo.py.")
+            st.info("Chưa có ảnh demo. Thêm ảnh JPG/PNG vào thư mục anhdemo hoặc tải ảnh của bạn.")
     else:
         upload = st.file_uploader("Chọn ảnh JPG/PNG", type=["jpg", "jpeg", "png"])
         if upload:
@@ -94,35 +97,10 @@ with analyze_tab:
                     with col:
                         show_image(step, caption=title)
 
-with evaluate_tab:
-    st.write("Kiểm tra số đếm với số xu thật để lấy số liệu cho báo cáo.")
-    st.caption("Thư mục gồm ảnh và ground_truth.csv với các cột image_name, actual_count, group.")
-    dataset = st.text_input("Thư mục dữ liệu trên máy", str(ROOT / "dataset" / "demo"))
-    if st.button("Đánh giá bộ ảnh"):
-        st.session_state.pop("fixed_evaluation", None)
-        try:
-            with st.spinner("Đang xử lý bộ ảnh…"):
-                details = evaluate(dataset)
-            st.session_state["fixed_evaluation"] = (details, dataset)
-        except (ValueError, OSError, cv2.error, pd.errors.ParserError, KeyError) as error:
-            st.error(f"Không đánh giá được bộ dữ liệu: {error}")
-    if "fixed_evaluation" in st.session_state:
-        details, used_dataset = st.session_state["fixed_evaluation"]
-        st.caption(f"Kết quả lần chạy gần nhất: {used_dataset}")
-        summary = summarize(details)
-        st.dataframe(summary, hide_index=True)
-        st.markdown("**Theo nhóm điều kiện**")
-        st.dataframe(summarize(details, True), hide_index=True)
-        st.markdown("**Từng ảnh**")
-        st.dataframe(details, hide_index=True)
-        st.download_button("Tải chi tiết đánh giá", csv_bytes(details), "evaluation_details.csv", "text/csv")
-        st.download_button("Tải tổng hợp đánh giá", csv_bytes(summary), "evaluation_summary.csv", "text/csv")
-        st.caption("MAE: sai số đếm tuyệt đối trung bình. exact_percent: % ảnh đếm đúng. under/over_percent: % ảnh đếm thiếu/thừa. mean_ms: thời gian xử lý, không gồm đọc ảnh và giao diện.")
-
 with guide_tab:
     st.markdown("""
 ### Một luồng xử lý cố định
-1. **Thresholding (Otsu):** tách xu khỏi nền. Tự chọn chiều sáng/tối theo viền ảnh. Nếu các vùng ban đầu kém tròn, chương trình thử threshold trên gradient hình thái để tìm lại và khép các đường viền tròn; chỉ dùng vùng khôi phục khi chất lượng hình dạng cải thiện đủ.
+1. **Thresholding (Otsu):** tách xu khỏi nền. Tự chọn chiều sáng/tối theo viền ảnh. Threshold trên gradient hình thái hỗ trợ tìm viền tròn. Nếu một vùng tròn chỉ chứa các mảnh rời, chương trình khôi phục vùng đó trước Watershed; nếu toàn mask kém, chỉ thay mask khi chất lượng hình dạng cải thiện đủ.
 2. **Morphology:** Opening, Closing và lấp lỗ để làm sạch vùng xu.
 3. **Connected Components:** gán nhãn các vùng liên thông ban đầu.
 4. **Watershed:** dùng marker từ Distance Transform để phân tách xu chạm nhau.
@@ -143,5 +121,5 @@ Dùng nền đơn sắc tương phản, ánh sáng đều, camera nhìn từ tr�
 Hệ thống dùng cấu hình cố định, không đảm bảo mọi ảnh đều đếm đúng. Tự chọn nền giả định phần lớn viền ảnh thuộc nền.
 
 ### Phạm vi và báo cáo
-Xử lý ảnh tĩnh, gồm ảnh chụp trên băng chuyền; chưa đếm cộng dồn video. Ảnh demo là ảnh tổng hợp. Cần thêm ảnh thật, số xu thật và phân tích ví dụ đếm sai trong báo cáo.
+Xử lý ảnh tĩnh, gồm ảnh chụp trên băng chuyền; chưa đếm cộng dồn video. Ảnh demo là ảnh thật trong thư mục anhdemo. Khi viết báo cáo, ghi lại số xu thật, số chương trình đếm được và phân tích ví dụ sai; đếm đúng chưa đảm bảo đo kích thước đúng.
 """)

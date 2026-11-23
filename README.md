@@ -1,10 +1,19 @@
-# Phát hiện, phân tách và đếm đồng xu
+# Phát hiện và đếm đồng xu trong ảnh
 
-Bài tập lớn **Xử lý ảnh số** dùng Python, OpenCV, NumPy, Pandas và Streamlit. Đầu vào là **ảnh tĩnh**, gồm ảnh chụp từ trên xuống trên băng chuyền. Chương trình không theo dõi hoặc đếm cộng dồn video.
+Bài tập lớn môn **Xử lý ảnh số**. Chương trình nhận ảnh tĩnh, tự tách nền, phân tách xu chạm nhau, đếm và đo từng đồng xu. Không dùng AI, không huấn luyện mô hình.
 
-## Chạy trên Windows
+## Chạy chương trình
 
 Mở terminal tại thư mục dự án:
+
+```powershell
+python -m pip install -r requirements.txt
+python -m streamlit run app.py
+```
+
+Mở **http://localhost:8501**. Dừng bằng **Ctrl+C**. Đã kiểm tra trên Python 3.14 của máy hiện tại.
+
+Nếu muốn cài thư viện riêng cho dự án:
 
 ```powershell
 python -m venv .venv
@@ -12,105 +21,90 @@ python -m venv .venv
 .venv\Scripts\python.exe -m streamlit run app.py
 ```
 
-Truy cập **http://localhost:8501**. Nếu đã có thư viện, dùng `python -m streamlit run app.py`. Mã được kiểm tra bằng Python 3.14 trên máy hiện tại. Không cần training.
+## Cấu trúc
 
-## Chức năng
-
-- Tải ảnh JPG/PNG hoặc chọn 11 ảnh demo có sẵn.
-- Otsu Threshold, tự động chọn chiều tương phản theo viền ảnh.
-- Opening, Closing, lấp lỗ kín và lọc vùng nhỏ.
-- Một luồng cố định dùng đủ Thresholding, Morphology, Connected Components, Watershed và Contour Analysis.
-- Đánh ID, tâm, diện tích, chu vi, đường kính tương đương, đường kính bao ngoài, độ tròn và cờ sát biên.
-- Xuất CSV và ảnh kết quả; hiệu chuẩn mm/pixel là tùy chọn khi có vật chuẩn.
-- Xem các ảnh trung gian, marker và nhãn đối tượng.
-- Đánh giá cả bộ ảnh bằng MAE, % ảnh đếm đúng/thiếu/thừa, thời gian và thống kê theo nhóm.
-
-## Kịch bản demo
-
-1. Chọn `separated` để xem ID và thông số từng xu.
-2. Chọn `touching_pair` hoặc `touching_three`: chương trình tự dùng Watershed để tách xu dính. Xem số vùng trước phân tách và số xu cuối.
-3. Xem ảnh Threshold, Morphology, Distance Transform, Marker và nhãn.
-4. Thử `mixed_sizes`, `dark_coins`, `border`, `empty` và `noise`.
-5. Thử `overlap_limit` như trường hợp ngoài phạm vi chính. Đếm đúng ảnh tổng hợp này không chứng minh xử lý được chồng lấn thật.
-6. Tải ảnh chụp thật và xuất kết quả. Không cần chọn phương pháp hay chỉnh tham số. Có vật chuẩn thì mở mục đổi kích thước sang mm và nhập chiều dài đo trên chính ảnh đó.
-
-## Thuật toán
-
-Luồng cố định: BGR → grayscale → Gaussian 5×5 → Otsu → opening/closing → lấp lỗ → loại vùng nhỏ → Connected Components → Distance Transform/marker → Watershed → Contour Analysis → đếm và đo.
-
-| Kỹ thuật | Vai trò | Nhận xét |
-| --- | --- | --- |
-| Thresholding | Tách nền bằng Otsu | Ngưỡng cường độ được tính từ ảnh |
-| Morphology | Opening/Closing | Kernel elip 3×3, lấp lỗ và lọc vùng dưới 150 pixel² |
-| Connected Components | Tìm vùng ban đầu | Một vùng có thể gồm nhiều xu chạm nhau |
-| Watershed | Phân tách vùng có nhiều marker | Khoảng cách marker cố định hệ số 1.0 |
-| Contour Analysis | Lấy đường bao và đo | Phân tích từng nhãn sau phân tách |
-
-Các hằng số nằm trong `Config` của mã xử lý; giao diện không có bảng chọn thuật toán hoặc thanh chỉnh tham số. Cấu hình cố định cần điều kiện chụp tương đối ổn định và không đảm bảo đúng với mọi ảnh.
-
-Marker được tìm riêng từng cụm từ cực đại cục bộ của Distance Transform, rồi loại cực đại quá gần dựa trên bán kính. Chương trình chạy **Watershed trên mask ba kênh**: biên mask giữ nền bên ngoài, nội vùng được chia theo sự lan truyền marker. Distance Transform dùng tạo marker. Đây là xấp xỉ hình học; biên phân chia không đảm bảo đúng với biên thật và marker sai có thể gây tách thừa/thiếu.
-
-Với xu sáng gần màu nền, Otsu trực tiếp có thể mất vùng xu và nhận nhầm nền. Khi độ tròn trung bình có trọng số diện tích sau phân tách dưới 0.72, chương trình thử **gradient hình thái → Otsu → Closing → contour lồng nhau → convex hull** để khôi phục các viền tròn có đủ hỗ trợ. Chỉ dùng mask mới nếu diện tích còn ít nhất một nửa mask cũ và độ tròn tăng hơn 0.12. Các tiêu chí này là heuristic cố định, không phải xác suất đúng. Không dùng Hough hay AI. Vùng khôi phục là xấp xỉ theo đường viền, nên diện tích/kích thước cần đánh giá sai số riêng. Giao diện hiển thị thông báo khi dùng cách khôi phục này.
-
-### Các đại lượng
-
-- `area_px2`: số pixel trong nhãn.
-- `perimeter_px`: chu vi đường bao.
-- `equiv_diameter_px = 2*sqrt(area_px2/pi)`.
-- `circularity = 4*pi*contourArea/perimeter²`: diện tích và chu vi cùng đường bao.
-- `width_px`, `height_px`: kích thước hộp bao, không phải đường kính thật.
-- Với `s = mm/pixel`: `D_mm = D_px*s`, `A_mm2 = A_px2*s²`.
-- `touches_border`: đối tượng bị cắt mép; loại khỏi đánh giá kích thước đầy đủ.
-
-Pixel đường chia Watershed bị loại khỏi nhãn nên diện tích có thể giảm nhẹ. Chưa hiệu chuẩn thì cột mm để trống. Xu chồng lấn chỉ đo được phần phân đoạn nhìn thấy.
-
-## Dữ liệu và đánh giá
-
-[dataset/demo](dataset/demo) chứa **11 ảnh tổng hợp**, dùng kiểm tra/demo, không đại diện độ chính xác ảnh thật. Có thể tạo lại:
-
-```powershell
-python tools/generate_demo.py
+```text
+app.py                    Giao diện Streamlit tiếng Việt
+coin_counter/
+  __init__.py
+  pipeline.py             Thuật toán đếm và đo
+anhdemo/                  9 ảnh thật để demo
+docs/
+  BAO_CAO.md              Khung nội dung báo cáo
+requirements.txt          Các thư viện cần cài
+README.md                 Hướng dẫn sử dụng
+.vscode/tasks.json        Tác vụ chạy ứng dụng trong VS Code
 ```
 
-Đưa ảnh thật vào [dataset/real](dataset/real), điền [ground_truth.csv](dataset/real/ground_truth.csv):
+## Cách demo
 
-```csv
-image_name,actual_count,group,notes
-A_01.jpg,5,separated,nen toi
-B_01.jpg,6,touching,hai cap xu cham nhau
-```
+1. Chọn **Ảnh demo**, chọn lần lượt một trong 9 ảnh lấy trực tiếp từ [anhdemo](anhdemo).
+2. Xem ảnh gốc, ảnh đánh ID, số xu và bảng diện tích/kích thước.
+3. Mở **Xem các bước xử lý ảnh** để trình bày ảnh trung gian.
+4. Tải bảng CSV hoặc ảnh kết quả nếu cần.
+5. Chọn **Tải ảnh của bạn** để thử ảnh JPG/PNG khác.
 
-Nên tự chụp 60–100 ảnh: xu riêng, cụm 2–3 xu chạm, nhiều kích thước, bóng/ánh sáng thay đổi, nền sáng/tối, ảnh trống và xu sát biên. Nhóm chồng lấn đánh giá riêng. Giữ riêng tập chỉnh tham số và tập đánh giá cuối dù không huấn luyện mô hình; không điều chỉnh từng ảnh trong tập đánh giá cuối rồi báo cáo như cấu hình cố định.
+Thuật toán và tham số đã cố định. Mục **Đổi kích thước sang mm** chỉ cần khi có vật chuẩn cùng mặt phẳng và đã đo được chiều dài tương ứng trên ảnh. Nếu chưa hiệu chuẩn, kết quả dùng pixel và pixel².
 
-Chạy giao diện hoặc terminal:
+## Yêu cầu đối với ảnh và đồng xu
 
-```powershell
-python evaluate.py --dataset dataset/demo --output results/demo
-python evaluate.py --dataset dataset/real --output results/real
-```
+Các điều kiện dưới đây giúp chương trình hoạt động ổn định với cấu hình xử lý cố định; không đảm bảo mọi ảnh đáp ứng điều kiện đều cho kết quả đúng.
 
-Xuất `details.csv`, `summary.csv`, `by_group.csv`, `config.json`. Mỗi ảnh chạy đúng một luồng xử lý, không so sánh phương pháp. Thời gian gồm thuật toán và tạo ảnh minh họa, không gồm đọc ảnh/giao diện; mỗi ảnh chạy một lần nên thời gian chỉ tham khảo.
+### Điều kiện ảnh đầu vào
 
-**MAE** = trung bình |số dự đoán − số thật|; **exact_percent** = % ảnh đếm đúng hoàn toàn. Đây là chỉ số đếm, không phải precision/recall phát hiện từng xu. Đánh giá phân đoạn cần mask thật, đánh giá kích thước cần số đo tham chiếu; hai phần này chưa tự động hóa.
+| Đặc điểm | Yêu cầu phù hợp |
+| --- | --- |
+| Định dạng | Ảnh tĩnh JPG/JPEG hoặc PNG; giao diện giới hạn tối đa 16 megapixel |
+| Góc chụp | Chụp gần vuông góc từ trên xuống để đồng xu nhìn gần tròn; hạn chế góc nghiêng lớn |
+| Nền | Nền phẳng, đơn sắc, ít họa tiết và tương phản với đồng xu; tránh vật thể tròn khác dễ bị đếm nhầm |
+| Ánh sáng | Chiếu sáng tương đối đều, hạn chế bóng đổ đậm và phản sáng làm mất đường viền |
+| Độ nét | Ảnh rõ, không rung hoặc nhòe; đồng xu phải đủ lớn trên ảnh để thấy đường viền và tạo vùng liên thông ổn định |
+| Bố cục | Đồng xu nằm trọn trong khung hình, có khoảng nền quanh mép ảnh; phần lớn viền ảnh cần thuộc nền để tự chọn chiều sáng/tối |
 
-## Kiểm tra
+Không cần ảnh có độ phân giải quá lớn. Ảnh rõ với đường viền đầy đủ hữu ích hơn ảnh nhiều pixel nhưng bị nhòe hoặc phản sáng. Không quy định một số lượng xu tối đa cố định; khả năng xử lý phụ thuộc kích thước từng xu trên ảnh, mức độ dính và chất lượng tách nền.
 
-```powershell
-python -m unittest discover -s tests -v
-```
+### Đặc điểm và cách bố trí đồng xu
 
-Kiểm tra ảnh trống, xu riêng/chạm, nhiều kích thước, xu tối, cắt biên, nhiễu, phép đo và ảnh lỗi. Có thêm ảnh thật hồi quy tại [four_coins.jpg](tests/fixtures/four_coins.jpg), kiểm tra cả vị trí từng xu và không nhận nhầm nền, vì tổng số đúng chưa đủ. Kiểm thử giao diện dùng Streamlit AppTest. Các ảnh tổng hợp và một ảnh thật chưa đại diện cho độ chính xác tổng quát.
+- Đồng xu có hình dạng gần tròn, đặt nằm phẳng trên cùng một mặt phẳng.
+- Có thể khác kích thước, màu sắc hoặc mệnh giá. Chương trình đếm và đo hình học, chưa nhận diện mệnh giá hoặc tính tổng tiền.
+- Ưu tiên các xu tách rời. Có thể chạm cạnh nhau nhưng cần còn thấy hình dạng từng xu để Distance Transform tạo marker và Watershed phân tách.
+- Hạn chế xếp chồng hoặc chồng lấn che khuất nhiều. Chạm cạnh và chồng lấn là hai trường hợp khác nhau; thuật toán không đảm bảo khôi phục được phần xu đã bị che.
+- Không để xu bị cắt bởi mép ảnh. Nếu có, chương trình đánh dấu `touches_border`; diện tích và kích thước chỉ mô tả phần đã phân đoạn.
+- Tránh xu quá nhỏ so với toàn ảnh: bộ lọc hiện loại vùng dưới 150 pixel², và vùng chỉ vừa vượt ngưỡng này vẫn có thể không đủ chi tiết để tách, đo ổn định.
 
-## Mã nguồn
+### Điều kiện đo kích thước thực
 
-- [app.py](app.py): giao diện tiếng Việt.
-- [pipeline.py](coin_counter/pipeline.py): thuật toán độc lập giao diện.
-- [evaluation.py](coin_counter/evaluation.py): đánh giá và tổng hợp chỉ số.
-- [evaluate.py](evaluate.py): đánh giá qua terminal.
-- [generate_demo.py](tools/generate_demo.py): tạo ảnh tổng hợp.
-- [tests](tests): kiểm thử.
-- [Khung báo cáo](docs/BAO_CAO.md): nội dung để hoàn thiện báo cáo môn học.
+- Nếu chưa hiệu chuẩn, kết quả chỉ có đơn vị **pixel** và **pixel²**.
+- Muốn đổi sang **mm** và **mm²**, cần vật chuẩn có chiều dài thật đã biết, nằm cùng mặt phẳng với đồng xu; đo chiều dài tương ứng trên chính ảnh đang xử lý.
+- Giữ camera gần vuông góc và tránh méo phối cảnh lớn. Khi thay vị trí camera, khoảng cách chụp hoặc thay đổi kích thước ảnh, cần xác định lại hệ số mm/pixel.
+- Xu bị che, cắt mép hoặc được khôi phục mask từ đường viền có thể có sai số đo lớn hơn. Số đếm đúng không chứng minh diện tích hoặc đường kính chính xác.
 
-## Giới hạn
+**Phạm vi đề tài:** Đếm và đo đồng xu gần tròn trên ảnh tĩnh chụp từ trên xuống, nền đơn giản, ánh sáng tương đối đều; hỗ trợ xu chạm nhau và hạn chế trường hợp chồng lấn mạnh. Chín ảnh demo là các ví dụ đã chọn để trình bày, không đại diện cho mọi điều kiện chụp.
 
-Ưu tiên ảnh gần vuông góc, nền tương phản, ánh sáng đều. Phản sáng mạnh, bóng đổ, nền họa tiết, che khuất hoặc marker không ổn định có thể làm sai kết quả. Tự chọn nền giả định phần lớn viền ảnh là nền; cần chụp lại khi giả định này không phù hợp. Chưa nhận diện mệnh giá, tính tổng tiền hay theo dõi băng chuyền bằng video.
+## Năm kỹ thuật chính
+
+| Kỹ thuật | Vai trò |
+| --- | --- |
+| Thresholding | Otsu tách xu khỏi nền, tự chọn chiều sáng/tối theo viền ảnh |
+| Morphology | Opening, Closing, lấp lỗ; gradient hình thái hỗ trợ tìm viền |
+| Connected Components | Gán nhãn vùng liên thông và đếm vùng trước phân tách |
+| Watershed | Phân tách xu chạm nhau bằng marker từ Distance Transform |
+| Contour Analysis | Phân tích đường bao, tính chu vi, độ tròn và kích thước |
+
+Grayscale và Gaussian Blur là bước chuẩn bị. Khi xu gần màu nền, hệ thống kiểm tra các viền gần tròn và có thể khôi phục mask bằng contour/convex hull trước Watershed. Quy tắc kiểm tra áp dụng chung cho ảnh, không dùng tên ảnh hoặc đáp án để đếm.
+
+## Phép đo và giới hạn
+
+- Diện tích là số pixel trong nhãn; chu vi lấy từ contour.
+- Đường kính tương đương: `D = 2*sqrt(A/pi)`.
+- Độ tròn: `4*pi*contourArea/perimeter²`.
+- Với `s` là mm/pixel: `D_mm = D_px*s`, `A_mm2 = A_px2*s²`.
+- Xu cắt mép, che khuất, biên Watershed hoặc mask được khôi phục có thể làm sai phép đo. Đếm đúng chưa chứng minh đo đúng.
+
+Phù hợp ảnh gần vuông góc, nền đơn giản và ánh sáng đều. Bóng đổ mạnh, phản sáng, nền họa tiết và xu chồng lấn nhiều có thể gây đếm sai. Chưa nhận diện mệnh giá, tổng tiền hoặc đếm cộng dồn băng chuyền bằng video. Các ảnh demo được chọn để trình bày, không đại diện độ chính xác tổng quát.
+
+## Báo cáo và nguồn ảnh
+
+Dùng [khung báo cáo](docs/BAO_CAO.md), ghi số xu đếm tay và số chương trình trả về để tổng hợp thực nghiệm. Không cần tệp nhãn hoặc bộ dữ liệu riêng để chạy ứng dụng.
+
+Ảnh 01–07 lấy từ [HiiYL/Coin-Counting](https://github.com/HiiYL/Coin-Counting), tương ứng ảnh nguồn 1, 2, 4, 5, 6, 7, 8; đã cắt 20 pixel ở mỗi mép, không cắt xu. Ảnh 09 và 10 lấy từ [kaa/coins-dataset](https://github.com/kaa/coins-dataset), tương ứng `src/test/test_3.jpg` và `src/test/test_9.jpg`; đã giảm cạnh dài về 1280 pixel, ảnh 10 cắt thêm phần nền ngoài vùng xu. Bộ ảnh hiện có 9 tệp, không đổi số thứ tự tên ảnh.

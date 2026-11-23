@@ -172,15 +172,42 @@ def process(image, config=None):
     quality = mask_quality(labels, config.min_area)
     recovered = False
     extra_steps = {}
-    if before and quality < .72:
+    if before:
         rim_mask, rim_edges = recover_round_regions(blur, config.min_area)
-        rim_result = split_mask(rim_mask, config.peak_spacing)
-        # Avoid replacing a whole scene with a few small decorative fragments.
-        enough_area = cv2.countNonZero(rim_mask) >= .5 * cv2.countNonZero(clean)
-        if enough_area and mask_quality(rim_result[3], config.min_area) > quality + .12:
-            clean = rim_mask
-            before, distance, seeds, labels = rim_result
-            recovered = True
+        if quality < .72:
+            rim_result = split_mask(rim_mask, config.peak_spacing)
+            # Avoid replacing a whole scene with decorative fragments.
+            enough_area = cv2.countNonZero(rim_mask) >= .5 * cv2.countNonZero(clean)
+            if enough_area and mask_quality(rim_result[3], config.min_area) > quality + .12:
+                clean = rim_mask
+                before, distance, seeds, labels = rim_result
+                recovered = True
+        if not recovered:
+            # An area-weighted scene score hides a single fragmented bright
+            # coin among many good coins. Inspect each closed rim locally too.
+            count, rim_labels, rim_stats, _ = cv2.connectedComponentsWithStats(rim_mask)
+            repaired = clean.copy()
+            for region in range(1, count):
+                x, y, width, height, area = rim_stats[region]
+                member = rim_labels[y:y + height, x:x + width] == region
+                current = repaired[y:y + height, x:x + width]
+                coverage = np.count_nonzero((current > 0) & member) / area
+                if not .05 < coverage < .80:
+                    continue
+                local = np.uint8(member) * 255
+                contours, _ = cv2.findContours(local, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                contour = max(contours, key=cv2.contourArea)
+                perimeter = cv2.arcLength(contour, True)
+                circularity = 4 * np.pi * cv2.contourArea(contour) / perimeter**2 if perimeter else 0
+                # Do not fill an elongated cluster or a partial border object.
+                if circularity < .8:
+                    continue
+                current[member] = 255
+                recovered = True
+            if recovered:
+                clean = repaired
+                before, distance, seeds, labels = split_mask(clean, config.peak_spacing)
+        if recovered:
             extra_steps = {"Threshold trên gradient hình thái": rim_edges}
     output = image.copy()
     rows = []

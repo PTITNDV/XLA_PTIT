@@ -2,55 +2,42 @@
 
 ## 1. Tổng quan
 
-Tên đề tài: **Phát hiện, phân tách và đếm đồng xu trong ảnh bằng kỹ thuật xử lý ảnh số**.
+**Tên đề tài:** Phát hiện, phân tách và đếm đồng xu trong ảnh.
 
-Nêu bài toán, đầu vào JPG/PNG, đầu ra số xu, ID, thông số hình học và ảnh minh họa. Phạm vi: ảnh tĩnh chụp từ trên xuống, xử lý xu chạm nhau; chồng lấn mạnh là khảo sát giới hạn. Ảnh chụp trên băng chuyền vẫn được phân tích từng ảnh, chưa đếm liên tục bằng video.
+Mô tả bốn yêu cầu: tách nền; xử lý xu chạm nhau; đếm; đo diện tích và kích thước. Phạm vi là ảnh tĩnh, không huấn luyện AI và không đếm cộng dồn từ video.
 
 ## 2. Cơ sở lý thuyết
 
-Trình bày grayscale, Gaussian, Otsu, erosion/dilation, opening/closing, liên thông 8, Distance Transform, cực đại cục bộ, marker-controlled Watershed và contour. Giải thích vì sao một vùng liên thông có thể chứa nhiều xu.
+Trình bày năm kỹ thuật: Thresholding, Morphology, Connected Components, Watershed, Contour Analysis. Giải thích ảnh xám, Gaussian Blur và Distance Transform là các bước hỗ trợ.
 
-## 3. Thiết kế và cài đặt
+## 3. Cài đặt
 
-Vẽ pipeline. Mô tả tạo marker riêng từng cụm, loại cực đại gần nhau và tham số khoảng cách. Nêu rõ Watershed chạy trên mask ba kênh, Distance Transform tạo marker. Giải thích công thức đo và giới hạn đối với xu sát biên/che khuất. Chèn ảnh giao diện và các ảnh trung gian từ chương trình.
+Luồng chính: ảnh → grayscale/blur → Otsu → morphology/lấp lỗ → vùng liên thông → Distance Transform/marker → Watershed → contour → đếm và đo.
 
-Mô tả bước phục hồi đường viền khi Otsu trực tiếp bỏ sót xu gần màu nền: gradient hình thái, Otsu trên gradient, Closing và chọn contour/convex hull tròn. Chỉ thay mask nếu tiêu chí hình dạng cải thiện. Đây là xấp xỉ hình học; không dùng kết quả đo vùng phục hồi như số đo chính xác tuyệt đối.
+Mã giao diện ở [app.py](../app.py), mã xử lý ở [pipeline.py](../coin_counter/pipeline.py), ảnh demo ở [anhdemo](../anhdemo). Chụp giao diện, ảnh trung gian và bảng thông số để minh họa.
 
-## 4. Thực nghiệm
+Với xu gần màu nền, mô tả gradient hình thái, threshold trên gradient, Closing và phân tích contour/convex hull để phục hồi vùng. Giải thích vì sao phải kiểm tra từng vùng thay vì chỉ nhìn chất lượng trung bình toàn ảnh. Vùng phục hồi là xấp xỉ, không phải hình dạng chuẩn tuyệt đối.
 
-### Bộ dữ liệu
+## 4. Thực nghiệm với 9 ảnh
 
-Tách rõ 11 ảnh tổng hợp có sẵn và bộ ảnh tự chụp. Ghi điều kiện camera, ánh sáng, vật chuẩn, số ảnh mỗi nhóm, số xu thật và cách tách tập chỉnh tham số/tập đánh giá cuối.
+Chạy từng ảnh trên giao diện. Điền số thật theo đếm tay và số dự đoán theo kết quả thực tế, không gán đáp án vào thuật toán.
 
-### Kết quả đếm
+| Ảnh | Số xu thật | Số chương trình đếm | Sai số tuyệt đối | Nhận xét |
+| --- | --- | --- | --- | --- |
+| anh_01.jpg | | | | |
+| anh_02.jpg | | | | |
+| anh_03.jpg | | | | |
+| anh_04.jpg | | | | |
+| anh_05.jpg | | | | |
+| anh_06.jpg | | | | |
+| anh_07.jpg | | | | |
+| anh_09.jpg | | | | |
+| anh_10.jpg | | | | |
 
-Điền kết quả thực tế từ CSV; không thay kết quả bằng chỉ tiêu kỳ vọng:
+Tính MAE bằng trung bình sai số tuyệt đối và tỷ lệ ảnh đếm đúng bằng số ảnh đúng chia 9. Đây là bộ ảnh demo có chọn lọc, không phải tập đánh giá độc lập. Giữ lại ví dụ sai nếu có và phân tích nguyên nhân.
 
-| Nhóm ảnh | Số ảnh | MAE | % đúng | % thiếu | % thừa | ms/ảnh |
-| --- | --- | --- | --- | --- | --- | --- |
-| Toàn bộ | Điền sau thực nghiệm | | | | | |
-| Xu tách rời | | | | | | |
-| Xu chạm nhau | | | | | | |
-| Nhiều kích thước | | | | | | |
+Để đánh giá kích thước, cần vật chuẩn cùng mặt phẳng và số đo đường kính tham chiếu. Không suy ra độ chính xác đo từ việc đếm đúng. Nếu chỉ dùng pixel, nêu rõ đơn vị pixel và pixel².
 
-Chỉ đánh giá một luồng xử lý cố định dùng đủ năm kỹ thuật. Phân tích lỗi mask, marker, bộ lọc và che khuất. Nêu rõ cấu hình cố định, điều kiện chụp và giới hạn thực tế.
+## 5. Kết luận và bảo vệ
 
-### Kết quả đo
-
-Chọn 10–20 xu không cắt/che, hiệu chuẩn trên cùng mặt phẳng, đo đường kính tham chiếu bằng thước phù hợp. Tổng hợp sai số tuyệt đối và tương đối giữa dự đoán và số đo thật. Nếu có mask thật, bổ sung sai số diện tích/IoU. Ứng dụng chưa tự tính các chỉ số đo/phân đoạn này; cần bảng tổng hợp riêng. Đếm đúng không đảm bảo đo đúng.
-
-## 5. Kết luận
-
-Đối chiếu bốn yêu cầu: tách nền, xử lý xu chạm, đếm, tính diện tích/kích thước. Nêu kết quả thực nghiệm, giới hạn và hướng phát triển: video + tracking + vạch đếm, nhận dạng mệnh giá, hiệu chuẩn camera, xử lý che khuất.
-
-## Câu hỏi bảo vệ
-
-- Vì sao Otsu có thể sai với phản sáng?
-- Opening và Closing ảnh hưởng thế nào tới xu nhỏ và vùng chạm?
-- Connected Components và Contour Analysis có vai trò gì trong luồng xử lý?
-- Distance Transform tạo marker như thế nào?
-- Khoảng cách marker ảnh hưởng tới tách thừa/thiếu ra sao?
-- Vì sao chọn mask làm địa hình Watershed, cách này có giới hạn gì?
-- Diện tích pixel khác contourArea ở đâu?
-- Khi nào được quy đổi pixel sang mm?
-- Vì sao đếm đúng chưa chứng minh phân đoạn/đo đúng?
+Đối chiếu yêu cầu, nêu giới hạn và hướng phát triển. Chuẩn bị giải thích: vì sao Otsu sai khi xu gần màu nền; opening/closing khác nhau; vì sao một vùng liên thông có nhiều xu; marker và Watershed tách xu như thế nào; khi nào đổi pixel sang mm; vì sao đếm đúng chưa chắc phân đoạn đúng.
